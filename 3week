@@ -1,0 +1,164 @@
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+
+#define BUFSIZE 2048
+#define BSIZE 300
+void err_handler(char *s);
+void request_err(int arg,int n);
+void request_handler(int arg);
+void send_ok_response(int arg, char *path);
+
+void err_handler(char *msg) {
+    printf("%s: %s\n", msg, strerror(errno));
+    exit(1);
+}
+
+void request_err(int c_sock, int n){
+    int check = n;
+    char err_400[] = "HTTP/1.1 400 Bad Request\r\n"
+                     "Server: server\r\n"
+                     "Content-type: text/html\r\n\r\n"
+					"Connection: close\r\n"
+                     "\r\n"
+                     "<!DOCTYPE html>\r\n"
+                     "<html>\r\n"
+                     "<head>\r\n"
+                     "<title>400 Bad Request</title>\r\n"
+                     "</head>\r\n"
+                     "<body>\r\n"
+                     "<h1>400 Bad Request</h1>\r\n"
+                     "</body>\r\n"
+                     "</html>\r\n";
+
+    char err_404[] = "HTTP/1.1 404 Not Found\r\n"
+                      "Server: server\r\n"
+                      "Content-Type: text/html\r\n"
+					  "Connection: close\r\n"
+                      "\r\n"
+                      "<!DOCTYPE html>\r\n"
+                      "<html>\r\n"
+                      "<head>\r\n"
+                      "<title>404 Not Found</title>\r\n"
+                      "</head>\r\n"
+                      "<body>\r\n"
+                      "<h1>404 Not Found</h1>\r\n"
+                      "</body>\r\n"
+                      "</html>\r\n";
+    if(check > 0) { 
+        write(c_sock, err_400, strlen(err_400));
+        close(c_sock);
+    }
+    else {
+        write(c_sock, err_404, strlen(err_404));
+        close(c_sock);
+    }
+}
+
+void ok_response(int c_sock, char *path) {
+    char content_type[10]={};
+    char buf[BSIZE];
+    char *f_ext = strrchr(path, '.');
+    
+    if (strcmp(f_ext, ".html") == 0) {
+        strcpy(content_type, "text/html");
+    } 
+
+    sprintf(buf, "HTTP/1.0 200 OK\r\n"
+                       "Server: server\r\n"
+                       "Content-type: %s\r\n\r\n", content_type);
+    write(c_sock, buf, strlen(buf));
+}
+
+void request_handler(int c_sock) {
+    char buf[BUFSIZE];
+    char method[BUFSIZE], path[BUFSIZE], version[BUFSIZE];
+    
+    if(read(c_sock, buf, BUFSIZE) < 0) {
+        err_handler("error occurred on the read()");
+    }
+    sscanf(buf, "%s %s %s",method,path,version);
+
+    printf("-------------------------------Rquset Message start-------------------------------\n");
+	printf("%s\n",buf);
+	printf("-------------------------------Rquset Message end-------------------------------\n");
+
+    if (method == NULL || strcmp(method, "GET") != 0) {
+        request_err(c_sock, 1);
+        return;
+    }
+    
+    if (strcmp(path, "/") == 0) {
+    strcpy(path, "index.html");
+    }  
+
+    FILE *f_path = fopen(path, "r");
+    
+    if (f_path == NULL) {
+        if (strcmp(path, "index.html") != 0) {
+            request_err(c_sock, 0);
+        } else {
+            request_err(c_sock, 1);
+        }
+    return;
+    }
+
+    ok_response(c_sock, path);
+
+    char buff[BUFSIZE];
+    unsigned int fread_data;
+    while ((fread_data = fread(buff, 1, BUFSIZE, f_path)) > 0) {
+        write(c_sock, buff, fread_data);
+    }
+    fclose(f_path);
+
+}
+
+int main(int argc, char **argv) {
+    int s_sock, c_sock;
+    struct sockaddr_in s_adr, c_adr;
+    int s_adrlen = sizeof(s_adr);
+    int c_adrlen = sizeof(c_adr);
+    char buf[BUFSIZE];
+
+    if(argc != 2) {
+        printf("Usage : %s <port>\n",argv[0]);
+    }
+
+    if((s_sock = socket(AF_INET, SOCK_STREAM, 0)) < 0){
+        err_handler("error occurred on the socket()");
+    }
+    printf("socket() success\n");
+
+    memset(&s_adr, 0, sizeof(s_adr));
+    s_adr.sin_family = AF_INET;
+    s_adr.sin_port = htons(atoi(argv[1]));
+    s_adr.sin_addr.s_addr = htonl(INADDR_ANY);
+
+    if(bind(s_sock, (struct sockaddr*)&s_adr,s_adrlen) < 0) {
+        err_handler("error occurred on the bind()");
+    }
+    printf("bind() success\n");
+
+    if(listen(s_sock, 20) < 0) {
+        err_handler("error occurred on the listen()");
+    }
+    printf("listen() success\n");
+    
+    while(1) {
+        if((c_sock = accept(s_sock, (struct sockaddr*)&c_adr, &c_adrlen)) < 0) {
+            err_handler("error occurred on the accept()");
+        }
+        printf("connection success\n");
+
+        request_handler(c_sock);
+        close(c_sock);
+    }
+   
+    close(s_sock);
+    return 0;
+}
