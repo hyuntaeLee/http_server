@@ -14,13 +14,13 @@ void request_handler(int arg);
 void send_ok_response(int arg, char *path);
 
 void err_handler(char *msg) {
-    printf("%s: %s\n", msg, strerror(errno));
+    printf("%s: %s\n", msg, strerror(errno));  //소켓 함수 에러처리
     exit(1);
 }
 
-void request_err(int c_sock, int n){
+void request_err(int c_sock, int n){   //클라이언트 요청을 처리하는데 생기는 에러 
     int check = n;
-    char err_400[] = "HTTP/1.1 400 Bad Request\r\n"
+    char err_400[] = "HTTP/1.1 400 Bad Request\r\n"      //HTTP 400응답 메새지 전부 헤더부터 바디까지 전부 삽입
                      "Server: server\r\n"
                      "Content-type: text/html\r\n\r\n"
 		     "Connection: close\r\n"
@@ -35,7 +35,7 @@ void request_err(int c_sock, int n){
                      "</body>\r\n"
                      "</html>\r\n";
 
-    char err_404[] = "HTTP/1.1 404 Not Found\r\n"
+    char err_404[] = "HTTP/1.1 404 Not Found\r\n"       //HTTP 404응답 메새지 전부 헤더부터 바디까지 전부 삽입
                       "Server: server\r\n"
                       "Content-Type: text/html\r\n"
 		      "Connection: close\r\n"
@@ -50,69 +50,70 @@ void request_err(int c_sock, int n){
                       "</body>\r\n"
                       "</html>\r\n";
     if(check > 0) { 
-        write(c_sock, err_400, strlen(err_400));
+        write(c_sock, err_400, strlen(err_400));     //check값이 0보다 클 경우 HTTP 400응답 메새지 작성
         close(c_sock);
     }
     else {
-        write(c_sock, err_404, strlen(err_404));
+        write(c_sock, err_404, strlen(err_404));     //check값이 0보다 클 경우 HTTP 400응답 메새지 작성
         close(c_sock);
     }
 }
 
-void ok_response(int c_sock, char *path) {
+void ok_response(int c_sock, char *path) {        //HTTP 200응답 메새지 전송을 위한 함수
     char content_type[10]={};
     char buf[BSIZE];
-    char *f_ext = strrchr(path, '.');
+    char *f_ext = strrchr(path, '.');        //path변수에서 ".html"확장자 추출을 위한 strrchr()함수 사용
     
-    if (strcmp(f_ext, ".html") == 0) {
+    if (strcmp(f_ext, ".html") == 0) {       //추출한 확장자가 ".html"경우 content_type에 "text/html"에 삽입
         strcpy(content_type, "text/html");
     } 
-
+ 
     sprintf(buf, "HTTP/1.0 200 OK\r\n"
                  "Server: server\r\n"
-                 "Content-type: %s\r\n\r\n", content_type);
-    write(c_sock, buf, strlen(buf));
+                 "Content-type: %s\r\n\r\n", content_type);   //sprintf()함수를 사용해서 %s 지정자에 맞는 문자열 삽입해 HTTP 200 응답메새지 생성 
+    write(c_sock, buf, strlen(buf));   //만들어진 HTTP 200 응답메새지 작성
 }
 
-void request_handler(int c_sock) {
+void request_handler(int c_sock) {    //클라이언트 요청 처리를 위한 함수
     char buf[BUFSIZE];
     char method[BUFSIZE], path[BUFSIZE], version[BUFSIZE];
     
-    if(read(c_sock, buf, BUFSIZE) < 0) {
-        err_handler("error occurred on the read()");
+    if(read(c_sock, buf, BUFSIZE) < 0) {              //read()를 사용해서 클라이언트 요청을 buf에 읽어드린다.
+        err_handler("error occurred on the read()");  //read()함수 안되면 에러처리
     }
-    sscanf(buf, "%s %s %s",method,path,version);
+    sscanf(buf, "%s %s %s",method,path,version);      //sscanf()함수를 사용해서 "%s" 지정자에 맞게 buf값을 변수에 넣어준다.
 
+    //클라이언트 요청이 잘오는지 확인하기 위해 요청을 출력한다.
     printf("-------------------------------Rquset Message start-------------------------------\n");
     printf("%s\n",buf);
     printf("-------------------------------Rquset Message end-------------------------------\n");
 
-    if (method == NULL || strcmp(method, "GET") != 0) {
-        request_err(c_sock, 1);
+    if (method == NULL || strcmp(method, "GET") != 0) {    //메소드가 NULL인지 GET은 맞는지 비교한다.
+        request_err(c_sock, 1);                            //안되면 에러처리
         return;
     }
-    
-    if (strcmp(path, "/") == 0) {
-    strcpy(path, "index.html");
+     
+    if (strcmp(path, "/") == 0) {                          //시작페이지를 index.html을 설정하기 위한 if문
+    strcpy(path, "index.html");                            //path값이 "/"일 경우 "index.html"를 삽입
     }  
 
-    FILE *f_path = fopen(path, "r");
+    FILE *f_path = fopen(path, "r");                       //path에 파일경로를 fopen을 사용해서 열어준다.
     
-    if (f_path == NULL) {
-        if (strcmp(path, "index.html") != 0) {
-            request_err(c_sock, 0);
-        } else {
-            request_err(c_sock, 1);
+    if (f_path == NULL) {                                  //fopen함수가 실행해서 안만들어졌을경우
+        if (strcmp(path, "index.html") != 0) { 
+            request_err(c_sock, 0);                        //같지 않으면 HTTP 400 응답
+        } else { 
+            request_err(c_sock, 1);                        //같으면 HTTP 404응답
         }
     return;
     }
 
-    ok_response(c_sock, path);
+    ok_response(c_sock, path);				   //HTTP 200 성공 응답메새지 작성 함수
 
     char buff[BUFSIZE];
     unsigned int fread_data;
-    while ((fread_data = fread(buff, 1, BUFSIZE, f_path)) > 0) {
-        write(c_sock, buff, fread_data);
+    while ((fread_data = fread(buff, 1, BUFSIZE, f_path)) > 0) {  //fread()함수를 사용해서 1바이트씩 BUFSIZE만큼 읽는다. 파일이 끝날때까지 반복한다.
+        write(c_sock, buff, fread_data);                          //fread()를 통해 만들어진 fread_data값 만큼 다시 c_sock(클라이언트 소켓)에 작성해준다.
     }
     fclose(f_path);
 
@@ -125,37 +126,38 @@ int main(int argc, char **argv) {
     int c_adrlen = sizeof(c_adr);
     char buf[BUFSIZE];
 
-    if(argc != 2) {
+    if(argc != 2) {                               //포트번호를 입력했는지 검사
         printf("Usage : %s <port>\n",argv[0]);
     }
 
-    if((s_sock = socket(AF_INET, SOCK_STREAM, 0)) < 0){
-        err_handler("error occurred on the socket()");
+    if((s_sock = socket(AF_INET, SOCK_STREAM, 0)) < 0){     //서버 소켓 생성
+        err_handler("error occurred on the socket()");      //소켓 생성 에러
     }
-    printf("socket() success\n");
+    printf("socket() success\n");   //socker()함수 성공
 
+    //bind()함수 호출 전 주소 정보 초기화
     memset(&s_adr, 0, sizeof(s_adr));
     s_adr.sin_family = AF_INET;
     s_adr.sin_port = htons(atoi(argv[1]));
     s_adr.sin_addr.s_addr = htonl(INADDR_ANY);
 
-    if(bind(s_sock, (struct sockaddr*)&s_adr,s_adrlen) < 0) {
-        err_handler("error occurred on the bind()");
+    if(bind(s_sock, (struct sockaddr*)&s_adr,s_adrlen) < 0) {      //주소 정보 할당
+        err_handler("error occurred on the bind()");               //bind() 에러처리
     }
-    printf("bind() success\n");
+    printf("bind() success\n");     //bind()함수 성공 
 
-    if(listen(s_sock, 20) < 0) {
-        err_handler("error occurred on the listen()");
+    if(listen(s_sock, 20) < 0) {                         //listen함수호출 후 대기상태
+        err_handler("error occurred on the listen()");   //listen() 에러처리
     }
-    printf("listen() success\n");
+    printf("listen() success\n");                       //listen()함수 성공
     
-    while(1) {
-        if((c_sock = accept(s_sock, (struct sockaddr*)&c_adr, &c_adrlen)) < 0) {
-            err_handler("error occurred on the accept()");
+    while(1) {                                          
+        if((c_sock = accept(s_sock, (struct sockaddr*)&c_adr, &c_adrlen)) < 0) {      //accept함수 호출
+            err_handler("error occurred on the accept()");  //accept()함수 에러처리
         }
-        printf("connection success\n");
+        printf("connection success\n");                     //accept()함수 성공
 
-        request_handler(c_sock);
+        request_handler(c_sock);      //클라이언트 요청 처리를 위한 request_handler() 
         close(c_sock);
     }
    
