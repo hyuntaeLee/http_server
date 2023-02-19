@@ -23,7 +23,7 @@ void request_err(int c_sock, int n){
     char err_400[] = "HTTP/1.1 400 Bad Request\r\n"
                      "Server: server\r\n"
                      "Content-type: text/html\r\n\r\n"
-										 "Connection: close\r\n"
+		     "Connection: close\r\n"
                      "\r\n"
                      "<!DOCTYPE html>\r\n"
                      "<html>\r\n"
@@ -38,7 +38,7 @@ void request_err(int c_sock, int n){
     char err_404[] = "HTTP/1.1 404 Not Found\r\n"
                       "Server: server\r\n"
                       "Content-Type: text/html\r\n"
-										  "Connection: close\r\n"
+		      "Connection: close\r\n"
                       "\r\n"
                       "<!DOCTYPE html>\r\n"
                       "<html>\r\n"
@@ -69,8 +69,8 @@ void ok_response(int c_sock, char *path) {
     } 
 
     sprintf(buf, "HTTP/1.0 200 OK\r\n"
-                       "Server: server\r\n"
-                       "Content-type: %s\r\n\r\n", content_type);
+                 "Server: server\r\n"
+                 "Content-type: %s\r\n\r\n", content_type);
     write(c_sock, buf, strlen(buf));
 }
 
@@ -84,8 +84,8 @@ void request_handler(int c_sock) {
     sscanf(buf, "%s %s %s",method,path,version);
 
     printf("-------------------------------Rquset Message start-------------------------------\n");
-		printf("%s\n",buf);
-		printf("-------------------------------Rquset Message end-------------------------------\n");
+    printf("%s\n",buf);
+    printf("-------------------------------Rquset Message end-------------------------------\n");
 
     if (method == NULL || strcmp(method, "GET") != 0) {
         request_err(c_sock, 1);
